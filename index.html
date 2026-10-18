@@ -310,10 +310,11 @@ button.btn:focus-visible { outline: 3px solid var(--x); outline-offset: 3px; }
 
   function pick(arr) { return arr[Math.floor(Math.random() * arr.length)]; }
 
-  // Hard plays perfectly except that in about 1 game out of 10 it makes one
-  // mistake: a move that lets you force a win, preferring subtle ones (a fork
-  // setup) over leaving an open win.
-  var SLIP_CHANCE = 0.10;
+  // Both levels play perfectly except for one mistake in a set share of games:
+  // Medium about 1 game in 5 (20%), Hard about 1 game in 14 (7%). The mistake is
+  // a move that lets you force a win, preferring subtle ones (a fork setup) over
+  // leaving an open win.
+  var SLIP_CHANCE = { medium: 0.20, hard: 0.07 };
   var slipThisGame = false;
 
   function losingMove(b) {
@@ -333,24 +334,11 @@ button.btn:focus-visible { outline: 3px solid var(--x); outline-offset: 3px; }
   function cpuChoose() {
     var b = board.slice();
     var empties = emptySquares(b);
-    if (settings.level === 'hard') {
-      if (slipThisGame) {
-        var slip = losingMove(b);
-        if (slip !== -1) { slipThisGame = false; return slip; }
-      }
-      return bestMove(b, CPU);
+    if (slipThisGame) {
+      var slip = losingMove(b);
+      if (slip !== -1) { slipThisGame = false; return slip; }
     }
-    // Chance of taking a win, blocking your win, and otherwise playing the best move
-    var STYLE = {
-      medium: { win: 1, block: 1, best: 0.85 }
-    };
-    var st = STYLE[settings.level] || STYLE.medium;
-    var win = finishingMove(b, CPU);
-    if (win !== -1 && Math.random() < st.win) return win;
-    var block = finishingMove(b, HUMAN);
-    if (block !== -1 && Math.random() < st.block) return block;
-    if (Math.random() < st.best) return bestMove(b, CPU);
-    return pick(empties);
+    return bestMove(b, CPU);
   }
 
   // ---------- Drawing ----------
@@ -457,7 +445,7 @@ button.btn:focus-visible { outline: 3px solid var(--x); outline-offset: 3px; }
   function newGame() {
     if (cpuTimer) { clearTimeout(cpuTimer); cpuTimer = null; }
     board = [null, null, null, null, null, null, null, null, null];
-    slipThisGame = settings.level === 'hard' && Math.random() < SLIP_CHANCE;
+    slipThisGame = vsCpu() && Math.random() < (SLIP_CHANCE[settings.level] || 0);
     turn = starter;
     starter = other(starter);
     over = false;
@@ -498,7 +486,7 @@ button.btn:focus-visible { outline: 3px solid var(--x); outline-offset: 3px; }
 
   // ---------- Auto-update ----------
   // Bump APP_VERSION here and in version.json together on every release.
-  var APP_VERSION = '6';
+  var APP_VERSION = '7';
   var pendingVersion = null;
 
   function gameInProgress() {
