@@ -156,7 +156,6 @@ button.btn:focus-visible { outline: 3px solid var(--x); outline-offset: 3px; }
     <div class="seg small" id="levels" role="group" aria-label="Difficulty">
       <button type="button" data-level="easy" aria-pressed="false">Easy</button>
       <button type="button" data-level="medium" aria-pressed="false">Medium</button>
-      <button type="button" data-level="hard" aria-pressed="false">Hard</button>
       <button type="button" data-level="unbeatable" aria-pressed="false">Unbeatable</button>
     </div>
   </div>
@@ -196,7 +195,7 @@ button.btn:focus-visible { outline: 3px solid var(--x); outline-offset: 3px; }
   var cpuTimer = null;
 
   // Settings and scores (scores kept separately for each mode/difficulty)
-  var settings = { mode: 'cpu', level: 'medium' };
+  var settings = { mode: 'cpu', level: 'easy' };
   var scores = {};
   try {
     var s = JSON.parse(localStorage.getItem('ttt-settings') || 'null');
@@ -211,7 +210,18 @@ button.btn:focus-visible { outline: 3px solid var(--x); outline-offset: 3px; }
       localStorage.setItem('ttt-scores', JSON.stringify(scores));
       if (s) localStorage.setItem('ttt-settings', JSON.stringify(s));
     }
-    if (s && ['easy', 'medium', 'hard', 'unbeatable'].indexOf(s.level) !== -1) settings.level = s.level;
+    // Version 5 dropped the old Easy, renamed Medium to Easy and Hard to Medium
+    if (!localStorage.getItem('ttt-levels-v5')) {
+      var levelMap = { easy: 'easy', medium: 'easy', hard: 'medium', unbeatable: 'unbeatable' };
+      if (s && levelMap[s.level]) s.level = levelMap[s.level];
+      delete scores['cpu-easy'];
+      if (scores['cpu-medium']) { scores['cpu-easy'] = scores['cpu-medium']; delete scores['cpu-medium']; }
+      if (scores['cpu-hard']) { scores['cpu-medium'] = scores['cpu-hard']; delete scores['cpu-hard']; }
+      localStorage.setItem('ttt-levels-v5', '1');
+      localStorage.setItem('ttt-scores', JSON.stringify(scores));
+      if (s) localStorage.setItem('ttt-settings', JSON.stringify(s));
+    }
+    if (s && ['easy', 'medium', 'unbeatable'].indexOf(s.level) !== -1) settings.level = s.level;
     var old = JSON.parse(localStorage.getItem('ttt-score') || 'null');
     if (old && typeof old.X === 'number' && !scores.two) scores.two = old;
   } catch (e) {}
@@ -312,17 +322,42 @@ button.btn:focus-visible { outline: 3px solid var(--x); outline-offset: 3px; }
 
   function pick(arr) { return arr[Math.floor(Math.random() * arr.length)]; }
 
+  // Unbeatable makes one mistake in about 1 game out of 40 (2.5%), so a sharp
+  // player can win roughly 2% of the time. The mistake is a move that lets you
+  // force a win, preferring subtle ones (a fork setup) over leaving an open win.
+  var SLIP_CHANCE = 0.025;
+  var slipThisGame = false;
+
+  function losingMove(b) {
+    var empties = emptySquares(b), subtle = [], obvious = [];
+    for (var k = 0; k < empties.length; k++) {
+      b[empties[k]] = CPU;
+      if (!winnerOf(b) && minimax(b, HUMAN, CPU, 1) < 0) {
+        (finishingMove(b, HUMAN) === -1 ? subtle : obvious).push(empties[k]);
+      }
+      b[empties[k]] = null;
+    }
+    if (subtle.length) return pick(subtle);
+    if (obvious.length) return pick(obvious);
+    return -1;
+  }
+
   function cpuChoose() {
     var b = board.slice();
     var empties = emptySquares(b);
-    if (settings.level === 'unbeatable') return bestMove(b, CPU);
+    if (settings.level === 'unbeatable') {
+      if (slipThisGame) {
+        var slip = losingMove(b);
+        if (slip !== -1) { slipThisGame = false; return slip; }
+      }
+      return bestMove(b, CPU);
+    }
     // Chance of taking a win, blocking your win, and otherwise playing the best move
     var STYLE = {
-      easy:   { win: 0.85, block: 0.5,  best: 0 },
-      medium: { win: 1,    block: 0.85, best: 0.4 },
-      hard:   { win: 1,    block: 1,    best: 0.7 }
+      easy:   { win: 1, block: 0.85, best: 0.4 },
+      medium: { win: 1, block: 1,    best: 0.7 }
     };
-    var st = STYLE[settings.level] || STYLE.medium;
+    var st = STYLE[settings.level] || STYLE.easy;
     var win = finishingMove(b, CPU);
     if (win !== -1 && Math.random() < st.win) return win;
     var block = finishingMove(b, HUMAN);
@@ -435,6 +470,7 @@ button.btn:focus-visible { outline: 3px solid var(--x); outline-offset: 3px; }
   function newGame() {
     if (cpuTimer) { clearTimeout(cpuTimer); cpuTimer = null; }
     board = [null, null, null, null, null, null, null, null, null];
+    slipThisGame = Math.random() < SLIP_CHANCE;
     turn = starter;
     starter = other(starter);
     over = false;
@@ -475,7 +511,7 @@ button.btn:focus-visible { outline: 3px solid var(--x); outline-offset: 3px; }
 
   // ---------- Auto-update ----------
   // Bump APP_VERSION here and in version.json together on every release.
-  var APP_VERSION = '4';
+  var APP_VERSION = '5';
   var pendingVersion = null;
 
   function gameInProgress() {
