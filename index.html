@@ -465,9 +465,47 @@ button.btn:focus-visible { outline: 3px solid var(--x); outline-offset: 3px; }
     renderScore();
   });
 
+  // ---------- Auto-update ----------
+  // Bump APP_VERSION here and in version.json together on every release.
+  var APP_VERSION = '3';
+  var pendingVersion = null;
+
+  function gameInProgress() {
+    return !over && board.some(function (v) { return v; });
+  }
+
+  function applyUpdate(v) {
+    var tried = null;
+    try { tried = sessionStorage.getItem('ttt-update-tried'); } catch (e) {}
+    if (tried === v) return; // already reloaded for this version once; don't loop
+    try { sessionStorage.setItem('ttt-update-tried', v); } catch (e) {}
+    location.replace(location.pathname + '?v=' + encodeURIComponent(v));
+  }
+
+  function checkForUpdate() {
+    if (!window.fetch) return;
+    fetch('version.json?t=' + Date.now(), { cache: 'no-store' })
+      .then(function (r) { return r.ok ? r.json() : null; })
+      .then(function (data) {
+        if (!data || !data.version || String(data.version) === APP_VERSION) return;
+        var v = String(data.version);
+        if (gameInProgress()) pendingVersion = v; // wait until this game is over
+        else applyUpdate(v);
+      })
+      .catch(function () {});
+  }
+
+  document.getElementById('newGame').addEventListener('click', function () {
+    if (pendingVersion) applyUpdate(pendingVersion);
+  });
+  document.addEventListener('visibilitychange', function () {
+    if (document.visibilityState === 'visible') checkForUpdate();
+  });
+
   renderControls();
   renderScore();
   newGame();
+  checkForUpdate();
 })();
 </script>
 </body>
