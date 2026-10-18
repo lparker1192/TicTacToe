@@ -17,11 +17,11 @@
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Gochi+Hand&family=Nunito:wght@500;700&display=swap">
 <style>
 *, *::before, *::after { box-sizing: border-box; }
-:root { padding-top: env(safe-area-inset-top, 0px); padding-bottom: env(safe-area-inset-bottom, 0px); color-scheme: light; }
-body { margin: 0; }
-[hidden] { display: none !important; }
-/* Layout: one screen — a sheet of graph paper with the grid drawn in ink, status note above, tally below */
+/* Layout: one screen — a sheet of graph paper with the grid drawn in ink, mode switch and status above, tally below */
 :root {
+  padding-top: env(safe-area-inset-top, 0px);
+  padding-bottom: env(safe-area-inset-bottom, 0px);
+  color-scheme: light;
   --paper: #f7f8f3;
   --rule: #d6e0e6;
   --ink: #26323a;
@@ -31,24 +31,22 @@ body { margin: 0; }
   --hi: #f4d34a66;
   --btn: #26323a;
   --btn-fg: #f7f8f3;
+  --chip: #ffffffcc;
   --display: "Gochi Hand", "Comic Sans MS", "Marker Felt", cursive;
   --body: "Nunito", -apple-system, "Segoe UI", system-ui, sans-serif;
 }
 @media (prefers-color-scheme: dark) {
-  :root:not([data-theme="light"]) {
+  :root {
     --paper: #12232f; --rule: #1f3a4c; --ink: #e3ecf0; --muted: #8fa5b1;
     --x: #7fb6ff; --o: #ff8a73; --hi: #f4d34a33; --btn: #e3ecf0; --btn-fg: #12232f;
+    --chip: #12232fcc;
     color-scheme: dark;
   }
 }
-:root[data-theme="dark"] {
-  --paper: #12232f; --rule: #1f3a4c; --ink: #e3ecf0; --muted: #8fa5b1;
-  --x: #7fb6ff; --o: #ff8a73; --hi: #f4d34a33; --btn: #e3ecf0; --btn-fg: #12232f;
-  color-scheme: dark;
-}
 html { height: 100%; background: var(--paper); }
-body { height: 100%; }
 body {
+  margin: 0;
+  height: 100%;
   background-color: var(--paper);
   background-image:
     linear-gradient(var(--rule) 1px, transparent 1px),
@@ -61,13 +59,27 @@ body {
 }
 .wrap {
   min-height: 100%;
-  box-sizing: border-box;
   display: flex; flex-direction: column; align-items: center; justify-content: center;
-  gap: 22px;
-  padding-block: 24px;
+  gap: 18px;
+  padding-block: 16px;
   padding-left: max(16px, env(safe-area-inset-left, 0px));
   padding-right: max(16px, env(safe-area-inset-right, 0px));
 }
+.controls { display: flex; flex-direction: column; align-items: center; gap: 10px; }
+.seg {
+  display: flex; padding: 3px; border-radius: 999px;
+  border: 2px solid var(--ink); background: var(--chip);
+}
+.seg button {
+  appearance: none; border: 0; background: transparent; color: var(--ink);
+  font-family: var(--body); font-weight: 700; font-size: .95rem;
+  padding: 8px 16px; border-radius: 999px; cursor: pointer;
+}
+.seg button[aria-pressed="true"] { background: var(--btn); color: var(--btn-fg); }
+.seg.small { border-width: 1.5px; }
+.seg.small button { font-size: .82rem; padding: 6px 12px; }
+.seg button:focus-visible { outline: 3px solid var(--x); outline-offset: 2px; }
+
 .status {
   font-family: var(--display);
   font-size: clamp(2rem, 9vw, 2.75rem);
@@ -83,7 +95,7 @@ body {
 
 .board {
   position: relative;
-  width: min(88vw, 420px);
+  width: min(84vw, 420px, 52vh);
   aspect-ratio: 1;
   max-width: 100%;
   display: grid; grid-template-columns: repeat(3, 1fr); grid-template-rows: repeat(3, 1fr);
@@ -99,7 +111,7 @@ body {
 .cell.win { background: var(--hi); }
 .cell:disabled { cursor: default; }
 .cell svg { width: 100%; height: 100%; display: block; overflow: visible; }
-.cell svg path, .cell svg circle {
+.cell svg path {
   fill: none; stroke-linecap: round; stroke-width: 9;
   stroke-dasharray: 1; stroke-dashoffset: 1;
   animation: draw .28s ease-out forwards;
@@ -129,15 +141,27 @@ button.btn {
 button.btn.ghost { background: transparent; color: var(--ink); }
 button.btn:focus-visible { outline: 3px solid var(--x); outline-offset: 3px; }
 @media (prefers-reduced-motion: reduce) {
-  .cell svg path, .cell svg circle { animation: none; stroke-dashoffset: 0; }
+  .cell svg path { animation: none; stroke-dashoffset: 0; }
   .status.done { animation: none; }
 }
 </style>
 </head>
 <body>
-
 <div class="wrap">
+  <div class="controls">
+    <div class="seg" role="group" aria-label="Game mode">
+      <button type="button" id="modeCpu" aria-pressed="false">vs Computer</button>
+      <button type="button" id="modeTwo" aria-pressed="false">2 Players</button>
+    </div>
+    <div class="seg small" id="levels" role="group" aria-label="Difficulty">
+      <button type="button" data-level="easy" aria-pressed="false">Easy</button>
+      <button type="button" data-level="medium" aria-pressed="false">Medium</button>
+      <button type="button" data-level="hard" aria-pressed="false">Unbeatable</button>
+    </div>
+  </div>
+
   <p class="status" id="status" aria-live="polite"></p>
+
   <div class="board" id="board" role="grid" aria-label="Tic tac toe board">
     <svg class="grid" viewBox="0 0 300 300" aria-hidden="true">
       <path d="M101 8 C99 90 102 200 100 292"/>
@@ -146,11 +170,13 @@ button.btn:focus-visible { outline: 3px solid var(--x); outline-offset: 3px; }
       <path d="M7 200 C100 198 200 202 293 199"/>
     </svg>
   </div>
+
   <div class="tally" aria-label="Score">
-    <div class="xs"><b id="sx">0</b><span>X wins</span></div>
+    <div class="xs"><b id="sx">0</b><span id="lx">X wins</span></div>
     <div><b id="sd">0</b><span>Draws</span></div>
-    <div class="os"><b id="so">0</b><span>O wins</span></div>
+    <div class="os"><b id="so">0</b><span id="lo">O wins</span></div>
   </div>
+
   <div class="actions">
     <button class="btn" id="newGame" type="button">New game</button>
     <button class="btn ghost" id="resetScore" type="button">Reset score</button>
@@ -160,19 +186,38 @@ button.btn:focus-visible { outline: 3px solid var(--x); outline-offset: 3px; }
 <script>
 (function () {
   var LINES = [[0,1,2],[3,4,5],[6,7,8],[0,3,6],[1,4,7],[2,5,8],[0,4,8],[2,4,6]];
+  var HUMAN = 'X', CPU = 'O';
   var boardEl = document.getElementById('board');
   var statusEl = document.getElementById('status');
+  var levelsEl = document.getElementById('levels');
   var cells = [];
   var board, turn, over, starter = 'X';
-  var score = { X: 0, O: 0, D: 0 };
+  var cpuTimer = null;
 
+  // Settings and scores (scores kept separately for each mode/difficulty)
+  var settings = { mode: 'cpu', level: 'medium' };
+  var scores = {};
   try {
-    var saved = JSON.parse(localStorage.getItem('ttt-score') || 'null');
-    if (saved && typeof saved.X === 'number') score = saved;
+    var s = JSON.parse(localStorage.getItem('ttt-settings') || 'null');
+    if (s && (s.mode === 'cpu' || s.mode === 'two')) settings.mode = s.mode;
+    if (s && ['easy', 'medium', 'hard'].indexOf(s.level) !== -1) settings.level = s.level;
+    var sc = JSON.parse(localStorage.getItem('ttt-scores') || 'null');
+    if (sc && typeof sc === 'object') scores = sc;
+    var old = JSON.parse(localStorage.getItem('ttt-score') || 'null');
+    if (old && typeof old.X === 'number' && !scores.two) scores.two = old;
   } catch (e) {}
 
-  function saveScore() {
-    try { localStorage.setItem('ttt-score', JSON.stringify(score)); } catch (e) {}
+  function scoreKey() { return settings.mode === 'two' ? 'two' : 'cpu-' + settings.level; }
+  function score() {
+    var k = scoreKey();
+    if (!scores[k] || typeof scores[k].X !== 'number') scores[k] = { X: 0, O: 0, D: 0 };
+    return scores[k];
+  }
+  function save() {
+    try {
+      localStorage.setItem('ttt-settings', JSON.stringify(settings));
+      localStorage.setItem('ttt-scores', JSON.stringify(scores));
+    } catch (e) {}
   }
 
   for (var i = 0; i < 9; i++) {
@@ -194,6 +239,12 @@ button.btn:focus-visible { outline: 3px solid var(--x); outline-offset: 3px; }
     return null;
   }
 
+  function emptySquares(b) {
+    var out = [];
+    for (var k = 0; k < 9; k++) if (!b[k]) out.push(k);
+    return out;
+  }
+
   // Can anyone still get three in a row, playing out every possible remaining move?
   function winPossible(b, t) {
     if (winnerOf(b)) return true;
@@ -208,6 +259,71 @@ button.btn:focus-visible { outline: 3px solid var(--x); outline-offset: 3px; }
     return false;
   }
 
+  // ---------- Computer player ----------
+  function other(p) { return p === 'X' ? 'O' : 'X'; }
+
+  function minimax(b, t, me, depth) {
+    var w = winnerOf(b);
+    if (w) return w.p === me ? 10 - depth : depth - 10;
+    var empties = emptySquares(b);
+    if (!empties.length) return 0;
+    var best = t === me ? -Infinity : Infinity;
+    for (var k = 0; k < empties.length; k++) {
+      b[empties[k]] = t;
+      var v = minimax(b, other(t), me, depth + 1);
+      b[empties[k]] = null;
+      best = t === me ? Math.max(best, v) : Math.min(best, v);
+    }
+    return best;
+  }
+
+  function bestMove(b, me) {
+    var empties = emptySquares(b);
+    var bestVal = -Infinity, choices = [];
+    for (var k = 0; k < empties.length; k++) {
+      b[empties[k]] = me;
+      var v = minimax(b, other(me), me, 1);
+      b[empties[k]] = null;
+      if (v > bestVal) { bestVal = v; choices = [empties[k]]; }
+      else if (v === bestVal) choices.push(empties[k]);
+    }
+    return pick(choices);
+  }
+
+  function finishingMove(b, p) {
+    var empties = emptySquares(b);
+    for (var k = 0; k < empties.length; k++) {
+      b[empties[k]] = p;
+      var w = winnerOf(b);
+      b[empties[k]] = null;
+      if (w) return empties[k];
+    }
+    return -1;
+  }
+
+  function pick(arr) { return arr[Math.floor(Math.random() * arr.length)]; }
+
+  function cpuChoose() {
+    var b = board.slice();
+    var empties = emptySquares(b);
+    if (settings.level === 'easy') {
+      // Mostly random, but grabs an obvious win now and then
+      var win = finishingMove(b, CPU);
+      if (win !== -1 && Math.random() < 0.5) return win;
+      return pick(empties);
+    }
+    if (settings.level === 'medium') {
+      var w2 = finishingMove(b, CPU);
+      if (w2 !== -1) return w2;
+      var block = finishingMove(b, HUMAN);
+      if (block !== -1 && Math.random() < 0.85) return block;
+      if (Math.random() < 0.4) return bestMove(b, CPU);
+      return pick(empties);
+    }
+    return bestMove(b, CPU);
+  }
+
+  // ---------- Drawing ----------
   function mark(p) {
     if (p === 'X') {
       return '<svg viewBox="0 0 100 100" aria-hidden="true">' +
@@ -224,14 +340,36 @@ button.btn:focus-visible { outline: 3px solid var(--x); outline-offset: 3px; }
     if (done) { void statusEl.offsetWidth; statusEl.classList.add('done'); }
   }
 
+  function vsCpu() { return settings.mode === 'cpu'; }
+
   function showTurn() {
-    setStatus('<span class="' + turn.toLowerCase() + '">' + turn + '</span>’s turn', false);
+    if (vsCpu()) {
+      setStatus(turn === HUMAN ? 'Your turn <span class="x">(X)</span>' : '<span class="o">Thinking…</span>', false);
+    } else {
+      setStatus('<span class="' + turn.toLowerCase() + '">' + turn + '</span>’s turn', false);
+    }
   }
 
   function renderScore() {
-    document.getElementById('sx').textContent = score.X;
-    document.getElementById('so').textContent = score.O;
-    document.getElementById('sd').textContent = score.D;
+    var sc = score();
+    document.getElementById('sx').textContent = sc.X;
+    document.getElementById('so').textContent = sc.O;
+    document.getElementById('sd').textContent = sc.D;
+    document.getElementById('lx').textContent = vsCpu() ? 'You' : 'X wins';
+    document.getElementById('lo').textContent = vsCpu() ? 'Computer' : 'O wins';
+  }
+
+  function renderControls() {
+    document.getElementById('modeCpu').setAttribute('aria-pressed', String(vsCpu()));
+    document.getElementById('modeTwo').setAttribute('aria-pressed', String(!vsCpu()));
+    levelsEl.hidden = !vsCpu();
+    Array.prototype.forEach.call(levelsEl.querySelectorAll('button'), function (b) {
+      b.setAttribute('aria-pressed', String(b.dataset.level === settings.level));
+    });
+  }
+
+  function lockBoard(locked) {
+    cells.forEach(function (c, k) { c.disabled = locked || !!board[k]; });
   }
 
   function finish() {
@@ -240,9 +378,8 @@ button.btn:focus-visible { outline: 3px solid var(--x); outline-offset: 3px; }
     cells.forEach(function (c) { c.disabled = true; });
   }
 
-  function onTap(e) {
-    var i = +e.currentTarget.dataset.i;
-    if (over || board[i]) return;
+  // ---------- Game flow ----------
+  function play(i) {
     board[i] = turn;
     cells[i].innerHTML = mark(turn);
     cells[i].disabled = true;
@@ -251,27 +388,47 @@ button.btn:focus-visible { outline: 3px solid var(--x); outline-offset: 3px; }
     var w = winnerOf(board);
     if (w) {
       w.line.forEach(function (k) { cells[k].classList.add('win'); });
-      score[w.p]++;
+      score()[w.p]++;
       finish();
-      setStatus('<span class="' + w.p.toLowerCase() + '">' + w.p + '</span> wins!', true);
+      if (vsCpu()) setStatus(w.p === HUMAN ? '<span class="x">You win!</span>' : '<span class="o">Computer wins</span>', true);
+      else setStatus('<span class="' + w.p.toLowerCase() + '">' + w.p + '</span> wins!', true);
     } else {
-      turn = turn === 'X' ? 'O' : 'X';
+      turn = other(turn);
       if (!winPossible(board.slice(), turn)) {
-        score.D++;
+        score().D++;
         finish();
         setStatus('Draw — nobody can win', true);
       } else {
         showTurn();
+        if (vsCpu() && turn === CPU) cpuTurn();
+        else lockBoard(false);
       }
     }
-    saveScore();
+    save();
     renderScore();
   }
 
+  function cpuTurn() {
+    lockBoard(true);
+    cpuTimer = setTimeout(function () {
+      cpuTimer = null;
+      if (over || turn !== CPU) return;
+      play(cpuChoose());
+    }, 550);
+  }
+
+  function onTap(e) {
+    var i = +e.currentTarget.dataset.i;
+    if (over || board[i]) return;
+    if (vsCpu() && turn !== HUMAN) return;
+    play(i);
+  }
+
   function newGame() {
+    if (cpuTimer) { clearTimeout(cpuTimer); cpuTimer = null; }
     board = [null, null, null, null, null, null, null, null, null];
     turn = starter;
-    starter = starter === 'X' ? 'O' : 'X';
+    starter = other(starter);
     over = false;
     boardEl.classList.remove('over');
     cells.forEach(function (c, k) {
@@ -281,15 +438,34 @@ button.btn:focus-visible { outline: 3px solid var(--x); outline-offset: 3px; }
       c.setAttribute('aria-label', 'Empty square ' + (k + 1));
     });
     showTurn();
+    if (vsCpu() && turn === CPU) cpuTurn();
   }
 
+  function setMode(m) {
+    if (settings.mode === m) return;
+    settings.mode = m;
+    starter = 'X';
+    save(); renderControls(); renderScore(); newGame();
+  }
+
+  document.getElementById('modeCpu').addEventListener('click', function () { setMode('cpu'); });
+  document.getElementById('modeTwo').addEventListener('click', function () { setMode('two'); });
+  Array.prototype.forEach.call(levelsEl.querySelectorAll('button'), function (b) {
+    b.addEventListener('click', function () {
+      if (settings.level === b.dataset.level) return;
+      settings.level = b.dataset.level;
+      starter = 'X';
+      save(); renderControls(); renderScore(); newGame();
+    });
+  });
   document.getElementById('newGame').addEventListener('click', newGame);
   document.getElementById('resetScore').addEventListener('click', function () {
-    score = { X: 0, O: 0, D: 0 };
-    saveScore();
+    scores[scoreKey()] = { X: 0, O: 0, D: 0 };
+    save();
     renderScore();
   });
 
+  renderControls();
   renderScore();
   newGame();
 })();
