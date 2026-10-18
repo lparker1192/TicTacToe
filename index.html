@@ -156,7 +156,8 @@ button.btn:focus-visible { outline: 3px solid var(--x); outline-offset: 3px; }
     <div class="seg small" id="levels" role="group" aria-label="Difficulty">
       <button type="button" data-level="easy" aria-pressed="false">Easy</button>
       <button type="button" data-level="medium" aria-pressed="false">Medium</button>
-      <button type="button" data-level="hard" aria-pressed="false">Unbeatable</button>
+      <button type="button" data-level="hard" aria-pressed="false">Hard</button>
+      <button type="button" data-level="unbeatable" aria-pressed="false">Unbeatable</button>
     </div>
   </div>
 
@@ -200,9 +201,17 @@ button.btn:focus-visible { outline: 3px solid var(--x); outline-offset: 3px; }
   try {
     var s = JSON.parse(localStorage.getItem('ttt-settings') || 'null');
     if (s && (s.mode === 'cpu' || s.mode === 'two')) settings.mode = s.mode;
-    if (s && ['easy', 'medium', 'hard'].indexOf(s.level) !== -1) settings.level = s.level;
     var sc = JSON.parse(localStorage.getItem('ttt-scores') || 'null');
     if (sc && typeof sc === 'object') scores = sc;
+    // Version 4 renamed the old "hard" key (perfect play) to "unbeatable"
+    if (!localStorage.getItem('ttt-levels-v4')) {
+      if (s && s.level === 'hard') s.level = 'unbeatable';
+      if (scores['cpu-hard']) { scores['cpu-unbeatable'] = scores['cpu-hard']; delete scores['cpu-hard']; }
+      localStorage.setItem('ttt-levels-v4', '1');
+      localStorage.setItem('ttt-scores', JSON.stringify(scores));
+      if (s) localStorage.setItem('ttt-settings', JSON.stringify(s));
+    }
+    if (s && ['easy', 'medium', 'hard', 'unbeatable'].indexOf(s.level) !== -1) settings.level = s.level;
     var old = JSON.parse(localStorage.getItem('ttt-score') || 'null');
     if (old && typeof old.X === 'number' && !scores.two) scores.two = old;
   } catch (e) {}
@@ -306,21 +315,20 @@ button.btn:focus-visible { outline: 3px solid var(--x); outline-offset: 3px; }
   function cpuChoose() {
     var b = board.slice();
     var empties = emptySquares(b);
-    if (settings.level === 'easy') {
-      // Mostly random, but grabs an obvious win now and then
-      var win = finishingMove(b, CPU);
-      if (win !== -1 && Math.random() < 0.5) return win;
-      return pick(empties);
-    }
-    if (settings.level === 'medium') {
-      var w2 = finishingMove(b, CPU);
-      if (w2 !== -1) return w2;
-      var block = finishingMove(b, HUMAN);
-      if (block !== -1 && Math.random() < 0.85) return block;
-      if (Math.random() < 0.4) return bestMove(b, CPU);
-      return pick(empties);
-    }
-    return bestMove(b, CPU);
+    if (settings.level === 'unbeatable') return bestMove(b, CPU);
+    // Chance of taking a win, blocking your win, and otherwise playing the best move
+    var STYLE = {
+      easy:   { win: 0.85, block: 0.5,  best: 0 },
+      medium: { win: 1,    block: 0.85, best: 0.4 },
+      hard:   { win: 1,    block: 1,    best: 0.7 }
+    };
+    var st = STYLE[settings.level] || STYLE.medium;
+    var win = finishingMove(b, CPU);
+    if (win !== -1 && Math.random() < st.win) return win;
+    var block = finishingMove(b, HUMAN);
+    if (block !== -1 && Math.random() < st.block) return block;
+    if (Math.random() < st.best) return bestMove(b, CPU);
+    return pick(empties);
   }
 
   // ---------- Drawing ----------
@@ -467,7 +475,7 @@ button.btn:focus-visible { outline: 3px solid var(--x); outline-offset: 3px; }
 
   // ---------- Auto-update ----------
   // Bump APP_VERSION here and in version.json together on every release.
-  var APP_VERSION = '3';
+  var APP_VERSION = '4';
   var pendingVersion = null;
 
   function gameInProgress() {
