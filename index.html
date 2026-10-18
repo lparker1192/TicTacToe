@@ -1,0 +1,298 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, user-scalable=no">
+<title>Tic Tac Toe</title>
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="default">
+<meta name="apple-mobile-web-app-title" content="Tic Tac Toe">
+<meta name="theme-color" content="#f7f8f3" media="(prefers-color-scheme: light)">
+<meta name="theme-color" content="#12232f" media="(prefers-color-scheme: dark)">
+<link rel="apple-touch-icon" href="apple-touch-icon.png">
+<link rel="icon" href="icon-512.png">
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Gochi+Hand&family=Nunito:wght@500;700&display=swap">
+<style>
+*, *::before, *::after { box-sizing: border-box; }
+:root { padding-top: env(safe-area-inset-top, 0px); padding-bottom: env(safe-area-inset-bottom, 0px); color-scheme: light; }
+body { margin: 0; }
+[hidden] { display: none !important; }
+/* Layout: one screen — a sheet of graph paper with the grid drawn in ink, status note above, tally below */
+:root {
+  --paper: #f7f8f3;
+  --rule: #d6e0e6;
+  --ink: #26323a;
+  --muted: #6b7a82;
+  --x: #1f5fbf;
+  --o: #c8402e;
+  --hi: #f4d34a66;
+  --btn: #26323a;
+  --btn-fg: #f7f8f3;
+  --display: "Gochi Hand", "Comic Sans MS", "Marker Felt", cursive;
+  --body: "Nunito", -apple-system, "Segoe UI", system-ui, sans-serif;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --paper: #12232f; --rule: #1f3a4c; --ink: #e3ecf0; --muted: #8fa5b1;
+    --x: #7fb6ff; --o: #ff8a73; --hi: #f4d34a33; --btn: #e3ecf0; --btn-fg: #12232f;
+    color-scheme: dark;
+  }
+}
+:root[data-theme="dark"] {
+  --paper: #12232f; --rule: #1f3a4c; --ink: #e3ecf0; --muted: #8fa5b1;
+  --x: #7fb6ff; --o: #ff8a73; --hi: #f4d34a33; --btn: #e3ecf0; --btn-fg: #12232f;
+  color-scheme: dark;
+}
+html { height: 100%; background: var(--paper); }
+body { height: 100%; }
+body {
+  background-color: var(--paper);
+  background-image:
+    linear-gradient(var(--rule) 1px, transparent 1px),
+    linear-gradient(90deg, var(--rule) 1px, transparent 1px);
+  background-size: 24px 24px;
+  color: var(--ink);
+  font-family: var(--body);
+  -webkit-tap-highlight-color: transparent;
+  user-select: none; -webkit-user-select: none;
+}
+.wrap {
+  min-height: 100%;
+  box-sizing: border-box;
+  display: flex; flex-direction: column; align-items: center; justify-content: center;
+  gap: 22px;
+  padding-block: 24px;
+  padding-left: max(16px, env(safe-area-inset-left, 0px));
+  padding-right: max(16px, env(safe-area-inset-right, 0px));
+}
+.status {
+  font-family: var(--display);
+  font-size: clamp(2rem, 9vw, 2.75rem);
+  line-height: 1.1;
+  text-align: center;
+  min-height: 1.2em;
+  margin: 0;
+}
+.status .x { color: var(--x); }
+.status .o { color: var(--o); }
+.status.done { animation: pop .35s ease-out; }
+@keyframes pop { from { transform: scale(.85); } to { transform: scale(1); } }
+
+.board {
+  position: relative;
+  width: min(88vw, 420px);
+  aspect-ratio: 1;
+  max-width: 100%;
+  display: grid; grid-template-columns: repeat(3, 1fr); grid-template-rows: repeat(3, 1fr);
+}
+.board svg.grid { position: absolute; inset: 0; width: 100%; height: 100%; pointer-events: none; }
+.grid path { stroke: var(--ink); stroke-width: 2.4; fill: none; stroke-linecap: round; }
+.cell {
+  appearance: none; border: 0; background: transparent; padding: 10%;
+  cursor: pointer; border-radius: 10px; position: relative;
+  transition: background-color .2s;
+}
+.cell:focus-visible { outline: 3px solid var(--x); outline-offset: -6px; }
+.cell.win { background: var(--hi); }
+.cell:disabled { cursor: default; }
+.cell svg { width: 100%; height: 100%; display: block; overflow: visible; }
+.cell svg path, .cell svg circle {
+  fill: none; stroke-linecap: round; stroke-width: 9;
+  stroke-dasharray: 1; stroke-dashoffset: 1;
+  animation: draw .28s ease-out forwards;
+}
+.cell svg .x { stroke: var(--x); }
+.cell svg .x2 { animation-delay: .14s; }
+.cell svg .o { stroke: var(--o); }
+@keyframes draw { to { stroke-dashoffset: 0; } }
+.board.over .cell:not(.win) svg { opacity: .35; transition: opacity .3s; }
+
+.tally {
+  display: flex; gap: 28px; justify-content: center;
+  font-family: var(--display); font-size: 1.4rem;
+}
+.tally div { display: flex; flex-direction: column; align-items: center; line-height: 1; gap: 4px; }
+.tally span { font-family: var(--body); font-size: .75rem; letter-spacing: .08em; text-transform: uppercase; color: var(--muted); font-weight: 700; }
+.tally .xs { color: var(--x); }
+.tally .os { color: var(--o); }
+.tally b { font-variant-numeric: tabular-nums; font-weight: 400; font-size: 1.8rem; }
+
+.actions { display: flex; gap: 12px; }
+button.btn {
+  font-family: var(--body); font-weight: 700; font-size: 1rem;
+  border-radius: 999px; padding: 12px 24px; cursor: pointer;
+  border: 2px solid var(--btn); background: var(--btn); color: var(--btn-fg);
+}
+button.btn.ghost { background: transparent; color: var(--ink); }
+button.btn:focus-visible { outline: 3px solid var(--x); outline-offset: 3px; }
+@media (prefers-reduced-motion: reduce) {
+  .cell svg path, .cell svg circle { animation: none; stroke-dashoffset: 0; }
+  .status.done { animation: none; }
+}
+</style>
+</head>
+<body>
+
+<div class="wrap">
+  <p class="status" id="status" aria-live="polite"></p>
+  <div class="board" id="board" role="grid" aria-label="Tic tac toe board">
+    <svg class="grid" viewBox="0 0 300 300" aria-hidden="true">
+      <path d="M101 8 C99 90 102 200 100 292"/>
+      <path d="M199 6 C201 100 198 210 200 293"/>
+      <path d="M8 100 C90 102 210 98 292 101"/>
+      <path d="M7 200 C100 198 200 202 293 199"/>
+    </svg>
+  </div>
+  <div class="tally" aria-label="Score">
+    <div class="xs"><b id="sx">0</b><span>X wins</span></div>
+    <div><b id="sd">0</b><span>Draws</span></div>
+    <div class="os"><b id="so">0</b><span>O wins</span></div>
+  </div>
+  <div class="actions">
+    <button class="btn" id="newGame" type="button">New game</button>
+    <button class="btn ghost" id="resetScore" type="button">Reset score</button>
+  </div>
+</div>
+
+<script>
+(function () {
+  var LINES = [[0,1,2],[3,4,5],[6,7,8],[0,3,6],[1,4,7],[2,5,8],[0,4,8],[2,4,6]];
+  var boardEl = document.getElementById('board');
+  var statusEl = document.getElementById('status');
+  var cells = [];
+  var board, turn, over, starter = 'X';
+  var score = { X: 0, O: 0, D: 0 };
+
+  try {
+    var saved = JSON.parse(localStorage.getItem('ttt-score') || 'null');
+    if (saved && typeof saved.X === 'number') score = saved;
+  } catch (e) {}
+
+  function saveScore() {
+    try { localStorage.setItem('ttt-score', JSON.stringify(score)); } catch (e) {}
+  }
+
+  for (var i = 0; i < 9; i++) {
+    var c = document.createElement('button');
+    c.className = 'cell';
+    c.type = 'button';
+    c.id = 'cell' + i;
+    c.dataset.i = i;
+    c.addEventListener('click', onTap);
+    boardEl.appendChild(c);
+    cells.push(c);
+  }
+
+  function winnerOf(b) {
+    for (var k = 0; k < LINES.length; k++) {
+      var l = LINES[k];
+      if (b[l[0]] && b[l[0]] === b[l[1]] && b[l[0]] === b[l[2]]) return { p: b[l[0]], line: l };
+    }
+    return null;
+  }
+
+  // Can anyone still get three in a row, playing out every possible remaining move?
+  function winPossible(b, t) {
+    if (winnerOf(b)) return true;
+    for (var k = 0; k < 9; k++) {
+      if (!b[k]) {
+        b[k] = t;
+        var r = winPossible(b, t === 'X' ? 'O' : 'X');
+        b[k] = null;
+        if (r) return true;
+      }
+    }
+    return false;
+  }
+
+  function mark(p) {
+    if (p === 'X') {
+      return '<svg viewBox="0 0 100 100" aria-hidden="true">' +
+        '<path class="x" pathLength="1" d="M18 16 C40 40 60 62 84 85"/>' +
+        '<path class="x x2" pathLength="1" d="M83 15 C60 38 40 60 16 84"/></svg>';
+    }
+    return '<svg viewBox="0 0 100 100" aria-hidden="true">' +
+      '<path class="o" pathLength="1" d="M52 14 C76 14 88 32 87 52 C86 74 70 87 50 87 C28 87 13 72 13 50 C13 30 28 15 54 17"/></svg>';
+  }
+
+  function setStatus(html, done) {
+    statusEl.innerHTML = html;
+    statusEl.classList.remove('done');
+    if (done) { void statusEl.offsetWidth; statusEl.classList.add('done'); }
+  }
+
+  function showTurn() {
+    setStatus('<span class="' + turn.toLowerCase() + '">' + turn + '</span>’s turn', false);
+  }
+
+  function renderScore() {
+    document.getElementById('sx').textContent = score.X;
+    document.getElementById('so').textContent = score.O;
+    document.getElementById('sd').textContent = score.D;
+  }
+
+  function finish() {
+    over = true;
+    boardEl.classList.add('over');
+    cells.forEach(function (c) { c.disabled = true; });
+  }
+
+  function onTap(e) {
+    var i = +e.currentTarget.dataset.i;
+    if (over || board[i]) return;
+    board[i] = turn;
+    cells[i].innerHTML = mark(turn);
+    cells[i].disabled = true;
+    cells[i].setAttribute('aria-label', turn);
+
+    var w = winnerOf(board);
+    if (w) {
+      w.line.forEach(function (k) { cells[k].classList.add('win'); });
+      score[w.p]++;
+      finish();
+      setStatus('<span class="' + w.p.toLowerCase() + '">' + w.p + '</span> wins!', true);
+    } else {
+      turn = turn === 'X' ? 'O' : 'X';
+      if (!winPossible(board.slice(), turn)) {
+        score.D++;
+        finish();
+        setStatus('Draw — nobody can win', true);
+      } else {
+        showTurn();
+      }
+    }
+    saveScore();
+    renderScore();
+  }
+
+  function newGame() {
+    board = [null, null, null, null, null, null, null, null, null];
+    turn = starter;
+    starter = starter === 'X' ? 'O' : 'X';
+    over = false;
+    boardEl.classList.remove('over');
+    cells.forEach(function (c, k) {
+      c.innerHTML = '';
+      c.disabled = false;
+      c.classList.remove('win');
+      c.setAttribute('aria-label', 'Empty square ' + (k + 1));
+    });
+    showTurn();
+  }
+
+  document.getElementById('newGame').addEventListener('click', newGame);
+  document.getElementById('resetScore').addEventListener('click', function () {
+    score = { X: 0, O: 0, D: 0 };
+    saveScore();
+    renderScore();
+  });
+
+  renderScore();
+  newGame();
+})();
+</script>
+</body>
+</html>
